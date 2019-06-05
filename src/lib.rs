@@ -1,4 +1,14 @@
-mod math;
+//! # Grape Machine learning
+//! Grape Machine learning is a library written in Rust.
+//!
+//! This library provides many neural networks implementations, that can be
+//! used depending the problem to solve.
+//!
+//! These implementations shares the same interfaces and can be wired each
+//! other in order to create a more complex brain that is able to solve more
+//! complicated tasks.
+
+pub mod math;
 
 #[cfg(test)]
 mod matrix_tests {

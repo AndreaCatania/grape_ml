@@ -1,9 +1,8 @@
 [package]
-name = "cortex"
+name = "Grape"
 version = "0.1.0"
 authors = ["Andrea Catania <info@andreacatania.com>"]
 edition = "2018"
 
 [dependencies]
-nalgebra = "0.18.0"
 rand = "0.6.5"

@@ -1,5 +1,24 @@
 use rand::Rng;
 
+/// The `Matrix` is a dynamic resizable matrix, which allow to perform all
+/// matrix operations.
+/// 
+/// In future it will be capable of run in the GPU
+/// 
+/// # Example
+/// 
+/// Create an empty matrix with 1 Row and 2 columns.
+/// ```
+/// use Grape::math::Matrix;
+/// let m1 = Matrix::new(1, 2);
+/// ```
+/// 
+/// Create a 1x2 matrix and filling with data
+/// ```
+/// use Grape::math::Matrix;
+/// let m1 = Matrix::new_with(1, 2, vec![1.0, 2.0]);
+/// ```
+/// 
 pub struct Matrix {
     rows: usize,
     columns: usize,
@@ -27,18 +46,32 @@ impl PartialEq for Matrix {
 }
 
 impl Matrix {
+    /// Creates new empty matrix.
     pub fn new(rows: usize, columns: usize) -> Matrix {
         Matrix::new_with(rows, columns, Vec::with_capacity(rows * columns))
     }
 
+    /// Creates new matrix by cloning passed data
+    /// 
+    /// ## Note:
+    /// If the data cloned size is not compatible with rows and columns the matrix
+    /// is created anyway, but its internal data will be truncated or expanded
+    /// depending the case, and an error is print.
     pub fn new_cloning(rows: usize, columns: usize, data: &Vec<f32>) -> Matrix {
         Matrix::new_with(rows, columns, data.clone())
     }
 
+    /// Creates new matrix with the passed data
+    /// 
+    /// ## Note:
+    /// If the passed data size is not compatible with rows and columns the matrix
+    /// is created anyway, but the data will be truncated or expanded
+    /// depending the case, and an error is print.
     pub fn new_with(rows: usize, columns: usize, data: Vec<f32>) -> Matrix {
         let mut data = data;
         if data.len() != rows * columns {
             data.resize(rows * columns, 0.0);
+            println!("Warning the passed data size is different from expected");
         }
 
         Matrix {
@@ -57,9 +90,11 @@ impl Matrix {
     pub fn rows(&self) -> usize {
         self.rows
     }
+
     pub fn columns(&self) -> usize {
         self.columns
     }
+
     pub fn data(&self) -> &Vec<f32> {
         &self.data()
     }
@@ -72,7 +107,10 @@ impl Matrix {
         let mut rng = rand::thread_rng();
         // gen_range is exclusive on max side. (This is not necessary but has 0 cost)
         let range_max = range_max + 0.01;
-        self.data.iter_mut().map(|x| *x = rng.gen_range(range_min, range_max)).count();
+        self.data
+            .iter_mut()
+            .map(|x| *x = rng.gen_range(range_min, range_max))
+            .count();
     }
 
     pub fn get(&self, row: usize, col: usize) -> f32 {
@@ -109,13 +147,5 @@ impl Matrix {
         s += "┃\n┗━━━━┉\n";
 
         s
-    }
-}
-
-// Private
-impl Matrix {
-    fn init(&mut self) -> &mut Matrix {
-        self.data.resize(self.len(), 0.0);
-        self
     }
 }
