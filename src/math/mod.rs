@@ -3,3 +3,5 @@
 mod matrix;
 
 pub use matrix::Matrix;
+pub use matrix::MatrixMapFunc;
+pub use matrix::MatrixMapFunc1Arg;

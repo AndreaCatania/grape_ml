@@ -16,6 +16,20 @@ mod matrix_tests {
     use super::math;
 
     #[test]
+    fn check_map() {
+        const MUL_2: math::MatrixMapFunc = |v: f32| -> f32 { v * 2.0 };
+        const _POW: math::MatrixMapFunc1Arg = |v: f32, e: f32| -> f32 { v.powf(e) };
+
+        let mut m1 = math::Matrix::new_with(1, 2, vec![1.0, 1.0]);
+
+        m1.map(MUL_2);
+        m1.map_arg(_POW, 3.0);
+
+        let m2 = math::Matrix::new_with(1, 2, vec![8.0, 8.0]);
+        assert_eq!(m1 == m2, true);
+    }
+
+    #[test]
     fn check_equal() {
         let m1 = math::Matrix::new_with(1, 2, vec![1.0, 2.0]);
         let m2 = math::Matrix::new_with(1, 2, vec![1.0, 2.0]);
