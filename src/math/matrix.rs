@@ -18,13 +18,13 @@ pub type MatrixMapFunc1Arg = fn(f32, f32) -> f32;
 ///
 /// Create an empty matrix with 1 Row and 2 columns.
 /// ```
-/// use Grape::math::Matrix;
+/// use grape::math::Matrix;
 /// let m1 = Matrix::new(1, 2);
 /// ```
 ///
 /// Create a 1x2 matrix and filling with data
 /// ```
-/// use Grape::math::Matrix;
+/// use grape::math::Matrix;
 /// let m1 = Matrix::new_with(1, 2, vec![1.0, 2.0]);
 /// ```
 ///
@@ -129,7 +129,7 @@ impl Matrix {
     /// # Example
     ///
     /// ```
-    /// use Grape::math::{Matrix, MatrixMapFunc};
+    /// use grape::math::{Matrix, MatrixMapFunc};
     ///
     /// let func : MatrixMapFunc = |v: f32| -> f32 {v*2.0};
     ///
@@ -154,7 +154,7 @@ impl Matrix {
     /// # Example
     ///
     /// ```
-    /// use Grape::math::{Matrix, MatrixMapFunc1Arg};
+    /// use grape::math::{Matrix, MatrixMapFunc1Arg};
     ///
     /// let func : MatrixMapFunc1Arg = |v: f32, e:f32| -> f32 {v.powf(e)};
     ///
