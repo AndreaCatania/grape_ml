@@ -8,6 +8,14 @@
 //! other in order to create a more complex brain that is able to solve more
 //! complicated tasks.
 
+#![warn(
+    missing_debug_implementations,
+    missing_docs,
+    rust_2018_idioms,
+    rust_2018_compatibility,
+    clippy::all
+)]
+
 pub mod math;
 
 #[cfg(test)]
