@@ -26,7 +26,8 @@ mod matrix_tests {
     #[test]
     fn check_map() {
         const MUL_2: math::MatrixMapFunc = |v: f32| -> f32 { v * 2.0 };
-        const _POW: math::MatrixMapFunc1Arg = |v: f32, e: f32| -> f32 { v.powf(e) };
+        const _POW: math::MatrixMapFunc1Arg =
+            |v: f32, e: f32| -> f32 { v.powf(e) };
 
         let mut m1 = math::Matrix::new_with(1, 2, vec![1.0, 1.0]);
 

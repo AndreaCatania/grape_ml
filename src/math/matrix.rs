@@ -3,6 +3,12 @@ use std::ops::Mul;
 
 use rand::Rng;
 
+macro_rules! cell_id {
+    ($row:expr, $col:expr, $_self:expr) => {
+        $col + $row * $_self.columns
+    };
+}
+
 /// This type function is used to map a matrix.
 /// It receive the current I value and return it mapped.
 pub type MatrixMapFunc = fn(f32) -> f32;
@@ -48,7 +54,13 @@ impl Matrix {
     /// assert_eq!(m.len(), 6);
     /// ```
     pub fn new(rows: usize, columns: usize) -> Matrix {
-        Matrix::new_with(rows, columns, Vec::with_capacity(rows * columns))
+        let mut v = Vec::with_capacity(rows * columns);
+        unsafe {
+            // Enlarge its size right away instead to wait other operations.
+            // This operation is safe because we just created the array with this capacity.
+            v.set_len(rows * columns);
+        }
+        Matrix::new_with(rows, columns, v)
     }
 
     /// Creates new matrix by cloning passed data
@@ -162,10 +174,10 @@ impl Matrix {
     }
 
     /// Fill the entire matrix with the passed value
-    /// 
+    ///
     /// ```
     /// use grape::math::Matrix;
-    /// 
+    ///
     /// let m1 = Matrix::new_with(1, 2, vec![2.0, 2.0]);
     ///
     /// let mut m2 = Matrix::new(1, 2);
@@ -182,10 +194,10 @@ impl Matrix {
     /// Fills the entire matrix with random values.
     /// * `range_min` inclusive.
     /// * `range_max` exclusive.
-    /// 
+    ///
     /// ```
     /// use grape::math::Matrix;
-    /// 
+    ///
     /// let mut m = Matrix::new(2, 2);
     /// m.fill_rand(0.0, 1.0);
     ///
@@ -257,7 +269,7 @@ impl Matrix {
     /// ```
     #[inline]
     pub fn set(&mut self, row: usize, col: usize, val: f32) {
-        self.data[col + self.columns * row] = val;
+        self.data[cell_id!(row, col, self)] = val;
     }
 
     /// Get the value contained in the cell.
@@ -270,7 +282,7 @@ impl Matrix {
     /// ```
     #[inline]
     pub fn get(&self, row: usize, col: usize) -> f32 {
-        self.data[col + self.columns * row]
+        self.data[cell_id!(row, col, self)]
     }
 
     /// Returns a string with the matrix values in an human readable format.
@@ -346,13 +358,13 @@ impl fmt::Display for Matrix {
 //
 /// ```
 /// use grape::math::{Matrix, MatrixMapFunc};
-/// 
+///
 /// let res = Matrix::new_with(3, 3, vec![1.0, 2.0, 1.0, 0.0, 1.0, 0.0, 2.0, 3.0, 4.0]) * Matrix::new_with(3, 2, vec![2.0, 5.0, 6.0, 7.0, 1.0, 8.0]);
 /// assert_eq!(res, Matrix::new_with(3, 2, vec![15.0, 27.0, 6.0, 7.0, 26.0, 63.0]));
-/// 
+///
 /// let res = Matrix::new_with(2, 4, vec![1.0, 2.0, 1.0, 1.0, 0.0, 1.0, 0.0, 5.0]) * Matrix::new_with(4, 2, vec![2.0, 5.0, 6.0, 7.0, 1.0, 8.0, 3.0, 1.0]);
 /// assert_eq!(res, Matrix::new_with(2, 2, vec![18.0, 28.0, 21.0, 12.0]));
-/// 
+///
 /// let res = Matrix::new_with(2, 4, vec![1.0, 2.0, 1.0, 1.0, 0.0, 1.0, 0.0, 5.0]) * Matrix::new_with(4, 5, vec![2.0, 5.0, 6.0, 1.0, 4.0, 6.0, 7.0, 9.0, 7.0, 3.0, 1.0, 8.0, 2.0, 5.0, 4.0, 3.0, 1.0, 6.0, 8.0, 2.0]);
 /// assert_eq!(res, Matrix::new_with(2, 5, vec![18.0, 28.0, 32.0, 28.0, 16.0, 21.0, 12.0, 39.0, 47.0, 13.0]));
 /// ```
@@ -360,25 +372,61 @@ impl Mul for Matrix {
     type Output = Matrix;
 
     fn mul(self, other: Matrix) -> Matrix {
+        internal_mut_runtime_select(self, other)
+    }
+}
 
-        if self.columns != other.rows {
-            println!("This matrix multiplication can't be performed: {} x {}", self, other);
+use simdeez::avx2::*;
+use simdeez::scalar::*;
+use simdeez::sse2::*;
+use simdeez::sse41::*;
+use simdeez::*;
+
+simd_runtime_generate!(
+    fn internal_mut(left_matrix: Matrix, right_matrix: Matrix) -> Matrix {
+        if left_matrix.columns != right_matrix.rows {
+            println!(
+                "This matrix multiplication can't be performed: {} x {}",
+                left_matrix, right_matrix
+            );
             return Matrix::new(0, 0);
         }
 
+        let mut res = Matrix::new_with(
+            left_matrix.rows,
+            right_matrix.columns,
+            vec![0.0; left_matrix.rows * right_matrix.columns],
+        );
 
-        let mut res = Matrix::new(self.rows, other.columns);
+        for r in 0..left_matrix.rows {
+            for c in 0..left_matrix.columns {
+                let left_matrix_val = left_matrix.data[cell_id!(r, c, left_matrix)];
+                let simd_left_matrix = S::set1_ps(left_matrix_val);
 
-        for other_c in 0..other.columns{
-            for r in 0..self.rows {
-                let mut sum = 0.0;
-                for c in 0..self.columns {
-                    sum += self.get(r, c) * other.get(c, other_c);
+                for other_c in (0..right_matrix.columns).step_by(S::VF32_WIDTH) {
+
+                    let simd_current_value = S::loadu_ps(&res.data[cell_id!(r, other_c, res)]);
+                    let simd_right_matrix = S::loadu_ps(&right_matrix.data[cell_id!(c, other_c, right_matrix)]);
+
+                    //let simd_mul_res = S::mul_ps(simd_left_matrix, simd_right_matrix);
+                    //let simd_res = S::add_ps(simd_current_value, simd_mul_res);
+
+                    //S::storeu_ps(&mut res.data[cell_id!(r, other_c, res)], simd_res);
+                    //S::storeu_ps(&mut res.data[cell_id!(r, other_c, res)], simd_current_value);
+
+                    //let simd_res = simd_current_value + (simd_left_matrix * simd_right_matrix);
+                    let simd_res = simd_current_value + simd_left_matrix;
+                    S::storeu_ps(&mut res.data[cell_id!(r, other_c, res)], simd_res);
+
+                    // TODO remove this please
+                    //res.data[cell_id!(r, other_c, res)] = res.data
+                    //    [cell_id!(r, other_c, res)]
+                    //    + left_matrix.data[cell_id!(r, c, left_matrix)]
+                    //        * right_matrix.data[cell_id!(c, other_c, right_matrix)];
                 }
-                res.set(r, other_c, sum);
             }
         }
 
         res
     }
-}
+);
