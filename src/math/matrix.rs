@@ -1,4 +1,5 @@
 use std::fmt;
+use std::ops::Mul;
 
 use rand::Rng;
 
@@ -26,10 +27,11 @@ pub type MatrixMapFunc1Arg = fn(f32, f32) -> f32;
 ///
 /// Create a 1x2 matrix and filling with data
 /// ```
+/// // [1.0, 2.0]
+/// // [3.0, 4.0]
 /// use grape::math::Matrix;
-/// let m1 = Matrix::new_with(1, 2, vec![1.0, 2.0]);
+/// let m = Matrix::new_with(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
 /// ```
-///
 pub struct Matrix {
     rows: usize,
     columns: usize,
@@ -59,11 +61,14 @@ impl Matrix {
     /// ```
     /// use grape::math::Matrix;
     ///
-    /// let m = Matrix::new_from(1, 3, &[3.0, 2.0, 1.0]);
-    /// assert_eq!(m.len(), 3);
-    /// assert_eq!(m.get(0, 0), 3.0);
-    /// assert_eq!(m.get(0, 1), 2.0);
-    /// assert_eq!(m.get(0, 2), 1.0);
+    /// let m = Matrix::new_from(2, 3, &[6.0, 5.0, 4.0, 3.0, 2.0, 1.0]);
+    /// assert_eq!(m.len(), 6);
+    /// assert_eq!(m.get(0, 0), 6.0);
+    /// assert_eq!(m.get(0, 1), 5.0);
+    /// assert_eq!(m.get(0, 2), 4.0);
+    /// assert_eq!(m.get(1, 0), 3.0);
+    /// assert_eq!(m.get(1, 1), 2.0);
+    /// assert_eq!(m.get(1, 2), 1.0);
     /// ```
     pub fn new_from(rows: usize, columns: usize, data: &[f32]) -> Matrix {
         Matrix::new_with(rows, columns, data.to_vec())
@@ -79,11 +84,14 @@ impl Matrix {
     /// ```
     /// use grape::math::Matrix;
     ///
-    /// let m = Matrix::new_with(1, 3, vec![3.0, 2.0, 1.0]);
-    /// assert_eq!(m.len(), 3);
-    /// assert_eq!(m.get(0, 0), 3.0);
-    /// assert_eq!(m.get(0, 1), 2.0);
-    /// assert_eq!(m.get(0, 2), 1.0);
+    /// let m = Matrix::new_with(2, 3, vec![6.0, 5.0, 4.0, 3.0, 2.0, 1.0]);
+    /// assert_eq!(m.len(), 6);
+    /// assert_eq!(m.get(0, 0), 6.0);
+    /// assert_eq!(m.get(0, 1), 5.0);
+    /// assert_eq!(m.get(0, 2), 4.0);
+    /// assert_eq!(m.get(1, 0), 3.0);
+    /// assert_eq!(m.get(1, 1), 2.0);
+    /// assert_eq!(m.get(1, 2), 1.0);
     /// ```
     pub fn new_with(rows: usize, columns: usize, data: Vec<f32>) -> Matrix {
         let mut data = data;
@@ -225,16 +233,31 @@ impl Matrix {
         }
     }
 
+    /// Set the value to a specific cell
+    ///
+    /// ```
+    /// use grape::math::{Matrix, MatrixMapFunc};
+    ///
+    /// let mut m = Matrix::new_with(3, 2, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+    /// m.set(1, 0, 8.0);
+    /// assert_eq!(m.get(1, 0), 8.0);
+    /// ```
+    #[inline]
+    pub fn set(&mut self, row: usize, col: usize, val: f32) {
+        self.data[col + self.columns * row] = val;
+    }
+
     /// Get the value contained in the cell.
     ///
     /// ```
     /// use grape::math::{Matrix, MatrixMapFunc};
     ///
-    /// let m1 = Matrix::new_with(1, 2, vec![2.0, 4.0]);
-    /// assert_eq!(m1.get(0, 1), 4.0);
+    /// let m = Matrix::new_with(3, 2, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+    /// assert_eq!(m.get(1, 0), 3.0);
     /// ```
+    #[inline]
     pub fn get(&self, row: usize, col: usize) -> f32 {
-        self.data[col * self.rows + row]
+        self.data[col + self.columns * row]
     }
 
     /// Returns a string with the matrix values in an human readable format.
@@ -297,5 +320,52 @@ impl PartialEq for Matrix {
 impl fmt::Debug for Matrix {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "\n{}", self.to_str())
+    }
+}
+
+impl fmt::Display for Matrix {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "\n{}", self.to_str())
+    }
+}
+
+// TODO is it correct compare the result matric in this way?
+//
+/// ```
+/// use grape::math::{Matrix, MatrixMapFunc};
+/// 
+/// let res = Matrix::new_with(3, 3, vec![1.0, 2.0, 1.0, 0.0, 1.0, 0.0, 2.0, 3.0, 4.0]) * Matrix::new_with(3, 2, vec![2.0, 5.0, 6.0, 7.0, 1.0, 8.0]);
+/// assert_eq!(res, Matrix::new_with(3, 2, vec![15.0, 27.0, 6.0, 7.0, 26.0, 63.0]));
+/// 
+/// let res = Matrix::new_with(2, 4, vec![1.0, 2.0, 1.0, 1.0, 0.0, 1.0, 0.0, 5.0]) * Matrix::new_with(4, 2, vec![2.0, 5.0, 6.0, 7.0, 1.0, 8.0, 3.0, 1.0]);
+/// assert_eq!(res, Matrix::new_with(2, 2, vec![18.0, 28.0, 21.0, 12.0]));
+/// 
+/// let res = Matrix::new_with(2, 4, vec![1.0, 2.0, 1.0, 1.0, 0.0, 1.0, 0.0, 5.0]) * Matrix::new_with(4, 5, vec![2.0, 5.0, 6.0, 1.0, 4.0, 6.0, 7.0, 9.0, 7.0, 3.0, 1.0, 8.0, 2.0, 5.0, 4.0, 3.0, 1.0, 6.0, 8.0, 2.0]);
+/// assert_eq!(res, Matrix::new_with(2, 5, vec![18.0, 28.0, 32.0, 28.0, 16.0, 21.0, 12.0, 39.0, 47.0, 13.0]));
+/// ```
+impl Mul for Matrix {
+    type Output = Matrix;
+
+    fn mul(self, other: Matrix) -> Matrix {
+
+        if self.columns != other.rows {
+            println!("This matrix multiplication can't be performed: {} x {}", self, other);
+            return Matrix::new(0, 0);
+        }
+
+
+        let mut res = Matrix::new(self.rows, other.columns);
+
+        for other_c in 0..other.columns{
+            for r in 0..self.rows {
+                let mut sum = 0.0;
+                for c in 0..self.columns {
+                    sum += self.get(r, c) * other.get(c, other_c);
+                }
+                res.set(r, other_c, sum);
+            }
+        }
+
+        res
     }
 }
