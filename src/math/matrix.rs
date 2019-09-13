@@ -162,8 +162,10 @@ impl Matrix {
     }
 
     /// Fill the entire matrix with the passed value
+    /// 
     /// ```
     /// use grape::math::Matrix;
+    /// 
     /// let m1 = Matrix::new_with(1, 2, vec![2.0, 2.0]);
     ///
     /// let mut m2 = Matrix::new(1, 2);
@@ -172,20 +174,31 @@ impl Matrix {
     /// assert_eq!(m1, m2);
     /// ```
     pub fn fill_with(&mut self, val: f32) {
-        self.data.iter_mut().map(|x| *x = val).count();
+        for v in self.data.iter_mut() {
+            *v = val;
+        }
     }
 
     /// Fills the entire matrix with random values.
     /// * `range_min` inclusive.
-    /// * `range_max` inclusive.
+    /// * `range_max` exclusive.
+    /// 
+    /// ```
+    /// use grape::math::Matrix;
+    /// 
+    /// let mut m = Matrix::new(2, 2);
+    /// m.fill_rand(0.0, 1.0);
+    ///
+    /// assert!(m.get(0, 0) >= 0.0 && m.get(0, 0) < 1.0);
+    /// assert!(m.get(0, 1) >= 0.0 && m.get(0, 1) < 1.0);
+    /// assert!(m.get(1, 0) >= 0.0 && m.get(1, 0) < 1.0);
+    /// assert!(m.get(1, 1) >= 0.0 && m.get(1, 1) < 1.0);
+    /// ```
     pub fn fill_rand(&mut self, range_min: f32, range_max: f32) {
         let mut rng = rand::thread_rng();
-        // gen_range is exclusive on max side. (This is not necessary but has 0 cost)
-        let range_max = range_max + 0.01;
-        self.data
-            .iter_mut()
-            .map(|x| *x = rng.gen_range(range_min, range_max))
-            .count();
+        for v in self.data.iter_mut() {
+            *v = rng.gen_range(range_min, range_max);
+        }
     }
 
     /// Map all values with the passed function.
