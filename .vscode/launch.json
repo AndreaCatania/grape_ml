@@ -7,21 +7,20 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in library 'grape'",
+            "name": "Debug executable 'grape'",
             "cargo": {
                 "args": [
-                    "test",
-                    "--no-run",
-                    "--lib",
+                    "build",
+                    "--bin=grape",
                     "--package=grape"
                 ],
                 "filter": {
                     "name": "grape",
-                    "kind": "lib"
+                    "kind": "bin"
                 }
             },
             "args": [],
             "cwd": "${workspaceFolder}"
-        }
+        },
     ]
 }

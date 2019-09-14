@@ -382,8 +382,27 @@ use simdeez::sse2::*;
 use simdeez::sse41::*;
 use simdeez::*;
 
+// I'm using the most significant bit to make it cross architecture; since AVX2 stores
+// when the most significant bit is used while all the others doesn't store when 0 is set.
+const ON: i32 = 1_i32 << 31;
+const OFF: i32 = 0;
+
 simd_runtime_generate!(
     fn internal_mut(left_matrix: Matrix, right_matrix: Matrix) -> Matrix {
+        // Performs the multiplication between two `Matrix` using SIMD operations.
+        //
+        // This algorithm doen't use the "mathematical" way of doing it: A_rows * B_columns.
+        //
+        // Rather it:
+        // - Creates the result `Matrix` with all cells set to 0.
+        // - For each element in the Matrix A perform a multiplication against the elements of the same
+        // rows in the Matrix B, advancing per each column in the Matrix A a row in the Matrix B.
+        // - Sum the result directly to the result `Matrix`.
+        //
+        // In this way it is possible to use SIMD APIs and benefit from the CPU cache.
+        //
+        // TODO try to find an even better way!
+
         if left_matrix.columns != right_matrix.rows {
             println!(
                 "This matrix multiplication can't be performed: {} x {}",
@@ -400,29 +419,35 @@ simd_runtime_generate!(
 
         for r in 0..left_matrix.rows {
             for c in 0..left_matrix.columns {
-                let left_matrix_val = left_matrix.data[cell_id!(r, c, left_matrix)];
-                let simd_left_matrix = S::set1_ps(left_matrix_val);
+                let left_val = left_matrix.data[cell_id!(r, c, left_matrix)];
+                let simd_left_value = S::set1_ps(left_val);
 
-                for other_c in (0..right_matrix.columns).step_by(S::VF32_WIDTH) {
+                for other_c in (0..right_matrix.columns).step_by(S::VF32_WIDTH)
+                {
+                    let res_cell_id = cell_id!(r, other_c, res);
 
-                    let simd_current_value = S::loadu_ps(&res.data[cell_id!(r, other_c, res)]);
-                    let simd_right_matrix = S::loadu_ps(&right_matrix.data[cell_id!(c, other_c, right_matrix)]);
+                    let simd_current_value =
+                        S::loadu_ps(&res.data[res_cell_id]);
+                    let simd_right_matrix = S::loadu_ps(
+                        &right_matrix.data[cell_id!(c, other_c, right_matrix)],
+                    );
 
-                    //let simd_mul_res = S::mul_ps(simd_left_matrix, simd_right_matrix);
-                    //let simd_res = S::add_ps(simd_current_value, simd_mul_res);
+                    let simd_mul_res =
+                        S::mul_ps(simd_left_value, simd_right_matrix);
+                    let simd_res = S::add_ps(simd_current_value, simd_mul_res);
 
-                    //S::storeu_ps(&mut res.data[cell_id!(r, other_c, res)], simd_res);
-                    //S::storeu_ps(&mut res.data[cell_id!(r, other_c, res)], simd_current_value);
+                    // Depending on the Matrix size is necessary to not overflow during the storing.
+                    // TODO is it fine  read out of the given array?
+                    // TODO Can this be avoided?
+                    let used_elements = right_matrix.columns - other_c;
+                    let mut mask_array = [ON; 8];
+                    mask_array
+                        .iter_mut()
+                        .skip(used_elements)
+                        .for_each(|v| *v = OFF);
+                    let mask = S::load_epi32(&mask_array[0]);
 
-                    //let simd_res = simd_current_value + (simd_left_matrix * simd_right_matrix);
-                    let simd_res = simd_current_value + simd_left_matrix;
-                    S::storeu_ps(&mut res.data[cell_id!(r, other_c, res)], simd_res);
-
-                    // TODO remove this please
-                    //res.data[cell_id!(r, other_c, res)] = res.data
-                    //    [cell_id!(r, other_c, res)]
-                    //    + left_matrix.data[cell_id!(r, c, left_matrix)]
-                    //        * right_matrix.data[cell_id!(c, other_c, right_matrix)];
+                    S::maskstore_ps(&mut res.data[res_cell_id], mask, simd_res);
                 }
             }
         }
