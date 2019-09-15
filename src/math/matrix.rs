@@ -1,6 +1,12 @@
 use std::fmt;
 use std::ops::Mul;
 
+use simdeez::avx2::*;
+use simdeez::scalar::*;
+use simdeez::sse2::*;
+use simdeez::sse41::*;
+use simdeez::*;
+use rayon;
 use rand::Rng;
 
 macro_rules! cell_id {
@@ -372,15 +378,16 @@ impl Mul for Matrix {
     type Output = Matrix;
 
     fn mul(self, other: Matrix) -> Matrix {
+
+        rayon::scope(|s| {
+            for _ in 0..1000{
+                s.spawn(|_| sum_slice(&arr, 0, 5, 2));
+            }
+        });
         internal_mut_runtime_select(self, other)
     }
 }
 
-use simdeez::avx2::*;
-use simdeez::scalar::*;
-use simdeez::sse2::*;
-use simdeez::sse41::*;
-use simdeez::*;
 
 // I'm using the most significant bit to make it cross architecture; since AVX2 stores
 // when the most significant bit is used while all the others doesn't store when 0 is set.
