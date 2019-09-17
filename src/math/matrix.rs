@@ -1,7 +1,14 @@
 use std::fmt;
 use std::ops::Mul;
+use std::sync::atomic::{AtomicPtr, Ordering};
 
 use rand::Rng;
+use rayon;
+use simdeez::avx2::*;
+use simdeez::scalar::*;
+use simdeez::sse2::*;
+use simdeez::sse41::*;
+use simdeez::*;
 
 macro_rules! cell_id {
     ($row:expr, $col:expr, $_self:expr) => {
@@ -320,6 +327,33 @@ impl Matrix {
 
         s
     }
+
+    /// Internal function used only for testing purposes.
+    ///
+    /// __Please don't use this.__
+    pub fn i_slow_not_optimized_mul(self, other: Matrix) -> Matrix {
+        if self.columns != other.rows {
+            println!(
+                "This matrix multiplication can't be performed: {} x {}",
+                self, other
+            );
+            return Matrix::new(0, 0);
+        }
+
+        let mut res = Matrix::new(self.rows, other.columns);
+
+        for other_c in 0..other.columns {
+            for r in 0..self.rows {
+                let mut sum = 0.0;
+                for c in 0..self.columns {
+                    sum += self.get(r, c) * other.get(c, other_c);
+                }
+                res.set(r, other_c, sum);
+            }
+        }
+
+        res
+    }
 }
 
 impl Clone for Matrix {
@@ -354,41 +388,30 @@ impl fmt::Display for Matrix {
     }
 }
 
-// TODO is it correct compare the result matric in this way?
-//
+/// The multiplication function is using an optimized algorithm that allows to
+/// use many thread and SIMD operations to compute the result.
+///
 /// ```
 /// use grape::math::{Matrix, MatrixMapFunc};
 ///
-/// let res = Matrix::new_with(3, 3, vec![1.0, 2.0, 1.0, 0.0, 1.0, 0.0, 2.0, 3.0, 4.0]) * Matrix::new_with(3, 2, vec![2.0, 5.0, 6.0, 7.0, 1.0, 8.0]);
-/// assert_eq!(res, Matrix::new_with(3, 2, vec![15.0, 27.0, 6.0, 7.0, 26.0, 63.0]));
+/// let mut m_a = Matrix::new(100, 100);
+/// let mut m_b = Matrix::new(100, 100);
+/// m_a.fill_rand(0.0, 2.0);
+/// m_b.fill_rand(0.0, 2.0);
 ///
-/// let res = Matrix::new_with(2, 4, vec![1.0, 2.0, 1.0, 1.0, 0.0, 1.0, 0.0, 5.0]) * Matrix::new_with(4, 2, vec![2.0, 5.0, 6.0, 7.0, 1.0, 8.0, 3.0, 1.0]);
-/// assert_eq!(res, Matrix::new_with(2, 2, vec![18.0, 28.0, 21.0, 12.0]));
+/// let mut correct_res = m_a.clone().i_slow_not_optimized_mul(m_b.clone());
+/// let mut may_be_wrong_res = m_a * m_b;
 ///
-/// let res = Matrix::new_with(2, 4, vec![1.0, 2.0, 1.0, 1.0, 0.0, 1.0, 0.0, 5.0]) * Matrix::new_with(4, 5, vec![2.0, 5.0, 6.0, 1.0, 4.0, 6.0, 7.0, 9.0, 7.0, 3.0, 1.0, 8.0, 2.0, 5.0, 4.0, 3.0, 1.0, 6.0, 8.0, 2.0]);
-/// assert_eq!(res, Matrix::new_with(2, 5, vec![18.0, 28.0, 32.0, 28.0, 16.0, 21.0, 12.0, 39.0, 47.0, 13.0]));
+/// // Flooring the result just to avoid floating point precision loss.
+/// correct_res.map(|v| v.floor());
+/// may_be_wrong_res.map(|v| v.floor());
+///
+/// assert_eq!(correct_res, may_be_wrong_res);
 /// ```
 impl Mul for Matrix {
     type Output = Matrix;
 
-    fn mul(self, other: Matrix) -> Matrix {
-        internal_mut_runtime_select(self, other)
-    }
-}
-
-use simdeez::avx2::*;
-use simdeez::scalar::*;
-use simdeez::sse2::*;
-use simdeez::sse41::*;
-use simdeez::*;
-
-// I'm using the most significant bit to make it cross architecture; since AVX2 stores
-// when the most significant bit is used while all the others doesn't store when 0 is set.
-const ON: i32 = 1_i32 << 31;
-const OFF: i32 = 0;
-
-simd_runtime_generate!(
-    fn internal_mut(left_matrix: Matrix, right_matrix: Matrix) -> Matrix {
+    fn mul(self, mut right_matrix: Matrix) -> Matrix {
         // Performs the multiplication between two `Matrix` using SIMD operations.
         //
         // This algorithm doen't use the "mathematical" way of doing it: A_rows * B_columns.
@@ -401,7 +424,9 @@ simd_runtime_generate!(
         //
         // In this way it is possible to use SIMD APIs and benefit from the CPU cache.
         //
-        // TODO try to find an even better way!
+        // TODO try to find an even better algorithm to do the multiplication!
+
+        let mut left_matrix = self;
 
         if left_matrix.columns != right_matrix.rows {
             println!(
@@ -411,47 +436,78 @@ simd_runtime_generate!(
             return Matrix::new(0, 0);
         }
 
-        let mut res = Matrix::new_with(
+        let mut result_matrix = Matrix::new_with(
             left_matrix.rows,
             right_matrix.columns,
             vec![0.0; left_matrix.rows * right_matrix.columns],
         );
 
-        for r in 0..left_matrix.rows {
-            for c in 0..left_matrix.columns {
-                let left_val = left_matrix.data[cell_id!(r, c, left_matrix)];
-                let simd_left_value = S::set1_ps(left_val);
+        let left_matrix_rows = left_matrix.rows;
 
-                for other_c in (0..right_matrix.columns).step_by(S::VF32_WIDTH)
-                {
-                    let res_cell_id = cell_id!(r, other_c, res);
+        // To share the matrices accross the thread I've to use the type `Arc`
+        // but since it will be shared accross some threads spawned and ended before
+        // the end of this function I don't need all the power provided by `Arc`
+        // and the unsafe `AtomicPtr` is much better.
+        let left_matrix_ptr = AtomicPtr::new(&mut left_matrix);
+        let right_matrix_ptr = AtomicPtr::new(&mut right_matrix);
+        // Even if this is mutated, it's safe use an AtomicPtr because the algorithm
+        // doesn't suffer of data race.
+        let res_ptr = AtomicPtr::new(&mut result_matrix);
 
-                    let simd_current_value =
-                        S::loadu_ps(&res.data[res_cell_id]);
-                    let simd_right_matrix = S::loadu_ps(
-                        &right_matrix.data[cell_id!(c, other_c, right_matrix)],
-                    );
-
-                    let simd_mul_res =
-                        S::mul_ps(simd_left_value, simd_right_matrix);
-                    let simd_res = S::add_ps(simd_current_value, simd_mul_res);
-
-                    // Depending on the Matrix size is necessary to not overflow during the storing.
-                    // TODO is it fine  read out of the given array?
-                    // TODO Can this be avoided?
-                    let used_elements = right_matrix.columns - other_c;
-                    let mut mask_array = [ON; 8];
-                    mask_array
-                        .iter_mut()
-                        .skip(used_elements)
-                        .for_each(|v| *v = OFF);
-                    let mask = S::load_epi32(&mask_array[0]);
-
-                    S::maskstore_ps(&mut res.data[res_cell_id], mask, simd_res);
+        // For each row of the right `Matrix` spawn a thread.
+        rayon::scope(move |scope| {
+            for r in 0usize..left_matrix_rows {
+                unsafe {
+                    let lm = &*left_matrix_ptr.load(Ordering::Relaxed);
+                    let rm = &*right_matrix_ptr.load(Ordering::Relaxed);
+                    let res = &mut *res_ptr.load(Ordering::Relaxed);
+                    scope.spawn(move |_| {
+                        internal_multi_row_runtime_select(lm, rm, r, res)
+                    });
                 }
             }
-        }
+        });
 
-        res
+        result_matrix
+    }
+}
+
+// I'm using the most significant bit to make it cross architecture; since AVX2 stores
+// when the most significant bit is used while all the others doesn't store when 0 is set.
+const ON: i32 = 1_i32 << 31;
+const OFF: i32 = 0;
+
+#[rustfmt::skip]
+simd_runtime_generate!(
+    fn internal_multi_row(left_matrix: &Matrix, right_matrix: &Matrix, left_m_row: usize, res: &mut Matrix) {
+        for left_m_column in 0usize..left_matrix.columns {
+
+            let left_val = left_matrix.data[cell_id!(left_m_row, left_m_column, left_matrix)];
+            let simd_left_value = S::set1_ps(left_val);
+
+            for right_m_column in (0..right_matrix.columns).step_by(S::VF32_WIDTH) {
+                let res_cell_id = cell_id!(left_m_row, right_m_column, res);
+
+                let simd_current_value = S::loadu_ps(&res.data[res_cell_id]);
+                let simd_right_matrix = S::loadu_ps(
+                    &right_matrix.data[cell_id!(left_m_column, right_m_column, right_matrix)],
+                );
+
+                let simd_mul_res = S::mul_ps(simd_left_value, simd_right_matrix);
+                let simd_res = S::add_ps(simd_current_value, simd_mul_res);
+
+                // Depending on the Matrix size is necessary to not overflow during the storing.
+                // TODO How to improve this?
+                let used_elements = right_matrix.columns - right_m_column;
+                let mut mask_array = [ON; 8];
+                mask_array
+                    .iter_mut()
+                    .skip(used_elements)
+                    .for_each(|v| *v = OFF);
+                let mask = S::load_epi32(&mask_array[0]);
+
+                S::maskstore_ps(&mut res.data[res_cell_id], mask, simd_res);
+            }
+        }
     }
 );
