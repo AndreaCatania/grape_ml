@@ -16,6 +16,12 @@ macro_rules! cell_id {
     };
 }
 
+macro_rules! transposed_cell_id {
+    ($row:expr, $col:expr, $_self:expr) => {
+        $row + $col * $_self.rows
+    };
+}
+
 /// This type function is used to map a matrix.
 /// It receive the current I value and return it mapped.
 pub type MatrixMapFunc = fn(f32) -> f32;
@@ -292,6 +298,67 @@ impl Matrix {
         self.data[cell_id!(row, col, self)]
     }
 
+    /// Returns a new transposed `Matrix`.
+    ///
+    /// ```
+    /// use grape::math::Matrix;
+    ///
+    /// // Example 1
+    /// let t = Matrix::new_with(2, 1, vec![0.0, 1.0]);
+    ///
+    /// assert_eq!(t.transposed(), Matrix::new_with(1, 2, vec![0.0, 1.0]));
+    ///
+    /// // Exampple 2
+    /// let t = Matrix::new_with(3, 3, vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]);
+    ///
+    /// assert_eq!(t.transposed(), Matrix::new_with(3, 3, vec![0.0, 3.0, 6.0, 1.0, 4.0, 7.0, 2.0, 5.0, 8.0]));
+    ///
+    /// // Exampple 3
+    /// let t1 = Matrix::new_with(3, 3, vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]);
+    /// let t2 = t1.clone();
+    ///
+    /// assert_eq!(t1.transposed().transposed(), t2);
+    /// ```
+    pub fn transposed(&self) -> Self {
+        let mut m = self.clone();
+        m.transpose();
+        m
+    }
+
+    /// Transpose the `Matrix`.
+    ///
+    /// ```
+    /// use grape::math::Matrix;
+    ///
+    /// // Example 1
+    /// let mut t = Matrix::new_with(2, 1, vec![0.0, 1.0]);
+    /// t.transpose();
+    ///
+    /// assert_eq!(t, Matrix::new_with(1, 2, vec![0.0, 1.0]));
+    ///
+    /// // Exampple 2
+    /// let mut t = Matrix::new_with(3, 3, vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]);
+    /// t.transpose();
+    ///
+    /// assert_eq!(t, Matrix::new_with(3, 3, vec![0.0, 3.0, 6.0, 1.0, 4.0, 7.0, 2.0, 5.0, 8.0]));
+    /// ```
+    pub fn transpose(&mut self) {
+        let mut data = Vec::with_capacity(self.rows * self.columns);
+        unsafe {
+            data.set_len(self.rows * self.columns); // Avoid reallocation
+        }
+
+        for r in 0..self.rows {
+            for c in 0..self.columns {
+                data[transposed_cell_id!(r, c, self)] =
+                    self.data[cell_id!(r, c, self)];
+            }
+        }
+
+        std::mem::swap(&mut self.rows, &mut self.columns);
+        self.data = data;
+    }
+
     /// Returns a string with the matrix values in an human readable format.
     pub fn to_str(&self) -> String {
         let mut s = String::new();
@@ -311,7 +378,7 @@ impl Matrix {
 
     /// Returns a string with the matrix values in an human readable format.
     ///
-    /// This version add a name, and is useful to defferentiate the matrix.
+    /// This version add a name, and it is useful to differentiate the matrix.
     pub fn to_str_with_name(&self, name: &str) -> String {
         let mut s = String::new();
 
