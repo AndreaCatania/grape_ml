@@ -359,6 +359,31 @@ impl Matrix {
         self.data = data;
     }
 
+
+    /// Perform the summation of the matrix.
+    /// 
+    /// ```
+    /// use grape::math::Matrix;
+    /// let m = Matrix::new_with(2, 2, vec![1.0, 2.0, 6.0, 2.0]);
+    /// 
+    /// assert_eq!(m.summation(), 11.0);
+    /// ```
+    pub fn summation(&self) -> f32 {
+        self.data.iter().fold(0.0, |acc, v| acc + v)
+    }
+
+    /// Performs the summation of the exponential value of each element.
+    /// 
+    /// ```
+    /// use grape::math::Matrix;
+    /// let m = Matrix::new_with(2, 2, vec![1.0, 2.0, 6.0, 2.0]);
+    /// 
+    /// assert_eq!(m.summation_exp().floor(), 420.0);
+    /// ```
+    pub fn summation_exp(&self) -> f32 {
+        self.data.iter().fold(0.0, |acc, v| acc + v.exp())
+    }
+
     /// Returns a string with the matrix values in an human readable format.
     pub fn to_str(&self) -> String {
         let mut s = String::new();
