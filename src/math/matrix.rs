@@ -10,6 +10,10 @@ use simdeez::sse2::*;
 use simdeez::sse41::*;
 use simdeez::*;
 
+// TODO how to make this more dynamic or customizable?
+const ELEMENT_WISE_MUL_MT_THRESHOLD: usize = 10_000;
+const ELEMENT_WISE_MUL_MT_THREADS: usize = 4;
+
 macro_rules! cell_id {
     ($row:expr, $col:expr, $_self:expr) => {
         $col + $row * $_self.columns
@@ -161,7 +165,7 @@ impl Matrix {
     /// assert_eq!(m1.len(), 6);
     /// ```
     pub fn len(&self) -> usize {
-        (self.rows * self.columns) as usize
+        self.rows * self.columns
     }
 
     /// Returns the rows of the matrix
@@ -359,13 +363,12 @@ impl Matrix {
         self.data = data;
     }
 
-
     /// Perform the summation of the matrix.
-    /// 
+    ///
     /// ```
     /// use grape::math::Matrix;
     /// let m = Matrix::new_with(2, 2, vec![1.0, 2.0, 6.0, 2.0]);
-    /// 
+    ///
     /// assert_eq!(m.summation(), 11.0);
     /// ```
     pub fn summation(&self) -> f32 {
@@ -373,15 +376,121 @@ impl Matrix {
     }
 
     /// Performs the summation of the exponential value of each element.
-    /// 
+    ///
     /// ```
     /// use grape::math::Matrix;
     /// let m = Matrix::new_with(2, 2, vec![1.0, 2.0, 6.0, 2.0]);
-    /// 
+    ///
     /// assert_eq!(m.summation_exp().floor(), 420.0);
     /// ```
     pub fn summation_exp(&self) -> f32 {
         self.data.iter().fold(0.0, |acc, v| acc + v.exp())
+    }
+
+    /// Perfom an element wise multiplication. This function is optimized
+    /// for large sized `Matrix`.
+    ///
+    /// Is required that both the `Matrix` have the same sized.
+    /// ```
+    /// use grape::math::Matrix;
+    ///
+    /// // Element wise multiplication of small sized Matrix.
+    ///
+    /// let mut m1 = Matrix::new(10, 10);
+    /// m1.fill_with(2.0);
+    ///
+    /// let mut m2 = Matrix::new(10, 10);
+    /// m2.fill_with(3.0);
+    ///
+    /// let res = m1.element_wise_mul(m2);
+    ///
+    /// for r in 0..res.rows(){
+    ///     for c in 0..res.columns(){
+    ///         assert_eq!(6.0, res.get(r, c));
+    ///     }
+    /// }
+    /// ```
+    pub fn element_wise_mul(mut self, right_matrix: Matrix) -> Matrix {
+        self.element_wise_mul_with(&right_matrix);
+        self
+    }
+
+    /// Perfom an element wise multiplication. This function is optimized
+    /// for large sized `Matrix`.
+    ///
+    /// Is required that both the `Matrix` have the same sized.
+    ///
+    /// ```
+    /// use grape::math::Matrix;
+    ///
+    /// // Element wise multiplication with large sized table.
+    ///
+    /// let mut m1 = Matrix::new(20_333, 2);
+    /// m1.fill_with(2.0);
+    ///
+    /// let mut m2 = Matrix::new(20_333, 2);
+    /// m2.fill_with(3.0);
+    ///
+    /// m1.element_wise_mul_with(&mut m2);
+    ///
+    /// for r in 0..m1.rows(){
+    ///     for c in 0..m1.columns(){
+    ///         assert_eq!(6.0, m1.get(r, c));
+    ///     }
+    /// }
+    /// ```
+    pub fn element_wise_mul_with(&mut self, right_matrix: &Matrix) {
+        if self.columns != right_matrix.columns {
+            println!("Can't perform an element wise multiplication on two Matrix with different columns count. {} x {}", self, right_matrix);
+            return;
+        }
+
+        if self.rows != right_matrix.rows {
+            println!("Can't perform an element wise multiplication on two Matrix with different rows count. {} x {}", self, right_matrix);
+            return;
+        }
+
+        // It's not required explicitly writes SIMD operations since this code is
+        // so trivial that is sure that the compiler is able to vectorize it.
+        // However an optimization can be done, by using many threads for this
+        // operation.
+        if self.len() > ELEMENT_WISE_MUL_MT_THRESHOLD {
+            rayon::scope(|scope| {
+                // Calculates the slot size per each thread
+                let slot_size = self.len() / ELEMENT_WISE_MUL_MT_THREADS;
+                let spare_slot_size =
+                    self.len() - (slot_size * ELEMENT_WISE_MUL_MT_THREADS);
+
+                for t in 0..ELEMENT_WISE_MUL_MT_THREADS {
+                    // It's safe to use AtomicPtr to pass pointer to the threads
+                    // because this algorithm is doesn't suffer of data race and
+                    // all the spawn threads end their work within this function.
+                    let res_ptr = AtomicPtr::new(self);
+                    scope.spawn(move |_| {
+                        unsafe {
+                            let res = &mut *res_ptr.load(Ordering::Relaxed);
+                            let first_element = t * slot_size;
+                            let last_element = {
+                                let mut le = first_element + slot_size;
+                                if t == (ELEMENT_WISE_MUL_MT_THREADS - 1) {
+                                    // On the last thread add the spare slot
+                                    le += spare_slot_size;
+                                }
+                                le
+                            };
+
+                            for i in first_element..last_element {
+                                res.data[i] *= right_matrix.data[i];
+                            }
+                        }
+                    });
+                }
+            });
+        } else {
+            for i in 0..self.len() {
+                self.data[i] *= right_matrix.data[i];
+            }
+        }
     }
 
     /// Returns a string with the matrix values in an human readable format.
