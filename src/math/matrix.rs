@@ -662,6 +662,9 @@ impl Mul for Matrix {
                     let lm = &*left_matrix_ptr.load(Ordering::Relaxed);
                     let rm = &*right_matrix_ptr.load(Ordering::Relaxed);
                     let res = &mut *res_ptr.load(Ordering::Relaxed);
+                    // TODO spawn a new thread per each row is wrong and not performant.
+                    // Please spawn a small quantity of threads that will do the entire job
+                    // instead to spawn a thread per each row.
                     scope.spawn(move |_| {
                         internal_multi_row_runtime_select(lm, rm, r, res)
                     });
