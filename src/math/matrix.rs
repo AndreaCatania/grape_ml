@@ -44,7 +44,7 @@ pub type MatrixMapFunc1Arg = fn(f32, f32) -> f32;
 ///
 /// Create an empty matrix with 1 Row and 2 columns.
 /// ```
-/// use grape::math::Matrix;
+/// use grape_ml::math::Matrix;
 /// let m1 = Matrix::new(1, 2);
 /// ```
 ///
@@ -52,7 +52,7 @@ pub type MatrixMapFunc1Arg = fn(f32, f32) -> f32;
 /// ```
 /// // [1.0, 2.0]
 /// // [3.0, 4.0]
-/// use grape::math::Matrix;
+/// use grape_ml::math::Matrix;
 /// let m = Matrix::new_with(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
 /// ```
 pub struct Matrix {
@@ -65,7 +65,7 @@ impl Matrix {
     /// Creates new matrix, with uninitialized data.
     ///
     /// ```
-    /// use grape::math::Matrix;
+    /// use grape_ml::math::Matrix;
     ///
     /// let m = Matrix::new(2, 3);
     /// assert_eq!(m.len(), 6);
@@ -88,7 +88,7 @@ impl Matrix {
     /// depending the case, and an error is print.
     ///
     /// ```
-    /// use grape::math::Matrix;
+    /// use grape_ml::math::Matrix;
     ///
     /// let m = Matrix::new_from(2, 3, &[6.0, 5.0, 4.0, 3.0, 2.0, 1.0]);
     /// assert_eq!(m.len(), 6);
@@ -111,7 +111,7 @@ impl Matrix {
     /// depending the case, and an error is print.
     ///
     /// ```
-    /// use grape::math::Matrix;
+    /// use grape_ml::math::Matrix;
     ///
     /// let m = Matrix::new_with(2, 3, vec![6.0, 5.0, 4.0, 3.0, 2.0, 1.0]);
     /// assert_eq!(m.len(), 6);
@@ -141,7 +141,7 @@ impl Matrix {
     /// Returns true when the matrix is empty
     ///
     /// ```
-    /// use grape::math::Matrix;
+    /// use grape_ml::math::Matrix;
     ///
     /// let m1 = Matrix::new(0, 0);
     /// let m2 = Matrix::new(1, 0);
@@ -160,7 +160,7 @@ impl Matrix {
     /// Returns the size of the matrix
     ///
     /// ```
-    /// use grape::math::Matrix;
+    /// use grape_ml::math::Matrix;
     /// let m1 = Matrix::new(2, 3);
     /// assert_eq!(m1.len(), 6);
     /// ```
@@ -171,7 +171,7 @@ impl Matrix {
     /// Returns the rows of the matrix
     ///
     /// ```
-    /// use grape::math::Matrix;
+    /// use grape_ml::math::Matrix;
     /// let m1 = Matrix::new(2, 3);
     /// assert_eq!(m1.rows(), 2);
     /// ```
@@ -182,7 +182,7 @@ impl Matrix {
     /// Returns the columns of the matrix
     ///
     /// ```
-    /// use grape::math::Matrix;
+    /// use grape_ml::math::Matrix;
     /// let m1 = Matrix::new(2, 3);
     /// assert_eq!(m1.columns(), 3);
     /// ```
@@ -193,7 +193,7 @@ impl Matrix {
     /// Fill the entire matrix with the passed value
     ///
     /// ```
-    /// use grape::math::Matrix;
+    /// use grape_ml::math::Matrix;
     ///
     /// let m1 = Matrix::new_with(1, 2, vec![2.0, 2.0]);
     ///
@@ -213,7 +213,7 @@ impl Matrix {
     /// * `range_max` exclusive.
     ///
     /// ```
-    /// use grape::math::Matrix;
+    /// use grape_ml::math::Matrix;
     ///
     /// let mut m = Matrix::new(2, 2);
     /// m.fill_rand(0.0, 1.0);
@@ -237,7 +237,7 @@ impl Matrix {
     /// # Example
     ///
     /// ```
-    /// use grape::math::{Matrix, MatrixMapFunc};
+    /// use grape_ml::math::{Matrix, MatrixMapFunc};
     ///
     /// let mut m1 = Matrix::new_with(1, 2, vec![1.0, 1.0]);
     /// m1.map(|v: f32| -> f32 {v*2.0});
@@ -261,7 +261,7 @@ impl Matrix {
     /// ```
     /// let func : MatrixMapFunc1Arg = |v: f32, e:f32| -> f32 {v.powf(e)};
     ///
-    /// use grape::math::{Matrix, MatrixMapFunc1Arg};
+    /// use grape_ml::math::{Matrix, MatrixMapFunc1Arg};
     ///
     /// let mut m1 = Matrix::new_with(1, 2, vec![2.0, 2.0]);
     /// m1.map_arg(func, 3.0);
@@ -278,7 +278,7 @@ impl Matrix {
     /// Set the value to a specific cell
     ///
     /// ```
-    /// use grape::math::{Matrix, MatrixMapFunc};
+    /// use grape_ml::math::{Matrix, MatrixMapFunc};
     ///
     /// let mut m = Matrix::new_with(3, 2, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
     /// m.set(1, 0, 8.0);
@@ -292,7 +292,7 @@ impl Matrix {
     /// Get the value contained in the cell.
     ///
     /// ```
-    /// use grape::math::{Matrix, MatrixMapFunc};
+    /// use grape_ml::math::{Matrix, MatrixMapFunc};
     ///
     /// let m = Matrix::new_with(3, 2, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
     /// assert_eq!(m.get(1, 0), 3.0);
@@ -305,7 +305,7 @@ impl Matrix {
     /// Returns a new transposed `Matrix`.
     ///
     /// ```
-    /// use grape::math::Matrix;
+    /// use grape_ml::math::Matrix;
     ///
     /// // Example 1
     /// let t = Matrix::new_with(2, 1, vec![0.0, 1.0]);
@@ -332,7 +332,7 @@ impl Matrix {
     /// Transpose the `Matrix`.
     ///
     /// ```
-    /// use grape::math::Matrix;
+    /// use grape_ml::math::Matrix;
     ///
     /// // Example 1
     /// let mut t = Matrix::new_with(2, 1, vec![0.0, 1.0]);
@@ -366,7 +366,7 @@ impl Matrix {
     /// Perform the summation of the matrix.
     ///
     /// ```
-    /// use grape::math::Matrix;
+    /// use grape_ml::math::Matrix;
     /// let m = Matrix::new_with(2, 2, vec![1.0, 2.0, 6.0, 2.0]);
     ///
     /// assert_eq!(m.summation(), 11.0);
@@ -378,7 +378,7 @@ impl Matrix {
     /// Performs the summation of the exponential value of each element.
     ///
     /// ```
-    /// use grape::math::Matrix;
+    /// use grape_ml::math::Matrix;
     /// let m = Matrix::new_with(2, 2, vec![1.0, 2.0, 6.0, 2.0]);
     ///
     /// assert_eq!(m.summation_exp().floor(), 420.0);
@@ -392,7 +392,7 @@ impl Matrix {
     ///
     /// Is required that both the `Matrix` have the same sized.
     /// ```
-    /// use grape::math::Matrix;
+    /// use grape_ml::math::Matrix;
     ///
     /// // Element wise multiplication of small sized Matrix.
     ///
@@ -421,7 +421,7 @@ impl Matrix {
     /// Is required that both the `Matrix` have the same sized.
     ///
     /// ```
-    /// use grape::math::Matrix;
+    /// use grape_ml::math::Matrix;
     ///
     /// // Element wise multiplication with large sized table.
     ///
@@ -593,7 +593,7 @@ impl fmt::Display for Matrix {
 /// use many thread and SIMD operations to compute the result.
 ///
 /// ```
-/// use grape::math::{Matrix, MatrixMapFunc};
+/// use grape_ml::math::{Matrix, MatrixMapFunc};
 ///
 /// let mut m_a = Matrix::new(100, 100);
 /// let mut m_b = Matrix::new(100, 100);

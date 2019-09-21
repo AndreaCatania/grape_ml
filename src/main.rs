@@ -1,4 +1,4 @@
-use grape::math::Matrix;
+use grape_ml::math::Matrix;
 
 fn main() {
     let matrix_size = 2048;
